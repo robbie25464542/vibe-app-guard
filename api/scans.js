@@ -60,20 +60,28 @@ async function scanTarget(targetUrl) {
 }
 
 module.exports = async function handler(request, response) {
-  if (request.method !== "POST") {
-    response.setHeader("allow", "POST");
-    response.status(405).json({ error: "只支持 POST /api/scans" });
+  if (request.method !== "POST" && request.method !== "GET") {
+    response.setHeader("allow", "GET, POST");
+    response.status(405).json({ error: "只支持 GET 或 POST /api/scans" });
     return;
   }
 
+  const headers = request.headers || {};
+  const requestUrl = new URL(request.url || "/api/scans", `https://${headers.host || "localhost"}`);
+  const protocol = headers["x-forwarded-proto"] || "https";
+  const defaultTargetUrl = `${protocol}://${headers.host || "localhost"}/demo-target`;
   const body = typeof request.body === "string" ? JSON.parse(request.body || "{}") : request.body || {};
-  if (!isSafeHttpUrl(body.targetUrl)) {
+  const targetUrl = request.method === "GET"
+    ? requestUrl.searchParams.get("targetUrl") || defaultTargetUrl
+    : body.targetUrl;
+
+  if (!isSafeHttpUrl(targetUrl)) {
     response.status(400).json({ error: "targetUrl 必须是 http 或 https URL" });
     return;
   }
 
   try {
-    const report = await scanTarget(body.targetUrl);
+    const report = await scanTarget(targetUrl);
     response.status(200).json({
       scanId: `scan_${Date.now()}`,
       status: "completed",

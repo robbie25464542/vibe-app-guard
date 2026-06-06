@@ -71,7 +71,41 @@ async function testVercelHandlerReturnsReport() {
   }
 }
 
-testVercelHandlerReturnsReport()
+async function testVercelHandlerSupportsGetDefaultTarget() {
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => ({
+    url: String(url),
+    status: 200,
+    headers: new Map([["content-type", "text/html"]]),
+    async text() {
+      return String(url).endsWith(".js")
+        ? "console.log('openai chat completions'); //# sourceMappingURL=demo-target-app.js.map"
+        : `<!doctype html><script src="/demo-target-app.js"></script><textarea placeholder="分享你的想法"></textarea><button>发表评论</button><input placeholder="询问 AI 助手"><input placeholder="手机号"><button>发送验证码</button>`;
+    }
+  });
+
+  try {
+    const response = createMockResponse();
+    await handler(
+      {
+        method: "GET",
+        url: "/api/scans",
+        headers: { host: "vibe-app-guard-demo.vercel.app", "x-forwarded-proto": "https" }
+      },
+      response
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.status, "completed");
+    assert.equal(response.body.report.targetUrl, "https://vibe-app-guard-demo.vercel.app/demo-target");
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
+Promise.resolve()
+  .then(testVercelHandlerReturnsReport)
+  .then(testVercelHandlerSupportsGetDefaultTarget)
   .then(() => console.log("Vercel handler tests passed"))
   .catch((error) => {
     console.error(error);
