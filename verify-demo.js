@@ -1,6 +1,6 @@
 const fs = require("fs");
 
-const requiredFiles = ["index.html", "styles.css", "app.js"];
+const requiredFiles = ["index.html", "styles.css", "client.js"];
 const requiredHtmlHooks = [
   'id="scanForm"',
   'id="progressPanel"',
@@ -28,7 +28,7 @@ for (const file of requiredFiles) {
 }
 
 const html = fs.readFileSync("index.html", "utf8");
-const js = fs.readFileSync("app.js", "utf8");
+const js = fs.readFileSync("client.js", "utf8");
 
 for (const hook of requiredHtmlHooks) {
   assert(html.includes(hook), `Missing HTML hook: ${hook}`);
