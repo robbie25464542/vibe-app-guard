@@ -73,16 +73,11 @@ async function testVercelHandlerReturnsReport() {
 
 async function testVercelHandlerSupportsGetDefaultTarget() {
   const originalFetch = global.fetch;
-  global.fetch = async (url) => ({
-    url: String(url),
-    status: 200,
-    headers: new Map([["content-type", "text/html"]]),
-    async text() {
-      return String(url).endsWith(".js")
-        ? "console.log('openai chat completions'); //# sourceMappingURL=demo-target-app.js.map"
-        : `<!doctype html><script src="/demo-target-app.js"></script><textarea placeholder="分享你的想法"></textarea><button>发表评论</button><input placeholder="询问 AI 助手"><input placeholder="手机号"><button>发送验证码</button>`;
-    }
-  });
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    throw new Error("Default target should use local fixture");
+  };
 
   try {
     const response = createMockResponse();
@@ -98,6 +93,8 @@ async function testVercelHandlerSupportsGetDefaultTarget() {
     assert.equal(response.statusCode, 200);
     assert.equal(response.body.status, "completed");
     assert.equal(response.body.report.targetUrl, "https://vibe-app-guard-demo.vercel.app/demo-target");
+    assert.equal(response.body.report.findings.length, 7);
+    assert.equal(fetchCalls, 0);
   } finally {
     global.fetch = originalFetch;
   }

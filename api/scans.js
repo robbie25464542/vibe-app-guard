@@ -38,6 +38,22 @@ function extractScriptUrls(baseUrl, html) {
 }
 
 async function scanTarget(targetUrl) {
+  if (isBuiltInDemoTarget(targetUrl)) {
+    return analyzeTarget({
+      targetUrl,
+      headers: {
+        "content-type": "text/html; charset=utf-8"
+      },
+      html: createDemoTargetHtml(),
+      scripts: [
+        {
+          url: new URL("/demo-target-app.js", targetUrl).toString(),
+          body: createDemoTargetScript()
+        }
+      ]
+    });
+  }
+
   const page = await fetchText(targetUrl);
   const scriptUrls = extractScriptUrls(page.url, page.text);
   const scripts = [];
@@ -57,6 +73,61 @@ async function scanTarget(targetUrl) {
     html: page.text.slice(0, 500_000),
     scripts
   });
+}
+
+function isBuiltInDemoTarget(targetUrl) {
+  try {
+    return new URL(targetUrl).pathname === "/demo-target";
+  } catch {
+    return false;
+  }
+}
+
+function createDemoTargetHtml() {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>演示应用 VibeBook</title>
+    <script src="/demo-target-app.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>演示应用 VibeBook</h1>
+      <section>
+        <h2>评论</h2>
+        <form action="/api/comments/create">
+          <textarea placeholder="分享你的想法"></textarea>
+          <button>发表评论</button>
+        </form>
+      </section>
+      <section>
+        <h2>头像</h2>
+        <input type="file" accept="image/*">
+        <button>上传头像</button>
+        <img src="https://demo.supabase.co/storage/v1/object/public/avatars/demo.png" alt="公开头像">
+      </section>
+      <section>
+        <h2>AI 对话</h2>
+        <input placeholder="询问 AI 助手">
+      </section>
+      <section>
+        <h2>登录</h2>
+        <input placeholder="手机号">
+        <button>发送验证码</button>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+function createDemoTargetScript() {
+  return `window.SUPABASE_URL = "https://demo.supabase.co";
+window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo";
+fetch("/api/comments/create");
+fetch("/api/chat");
+console.log("openai chat completions");
+//# sourceMappingURL=demo-target-app.js.map`;
 }
 
 module.exports = async function handler(request, response) {
