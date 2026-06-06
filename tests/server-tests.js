@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { createAppServer } = require("../server");
+const { createAppServer } = require("../local-server");
 
 async function requestJson(baseUrl, path, options = {}) {
   const response = await fetch(`${baseUrl}${path}`, {

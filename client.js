@@ -408,7 +408,7 @@ async function startScan(targetUrl) {
   setProgress(5, "正在准备扫描器...", -1);
 
   if (!window.location.protocol.startsWith("http")) {
-    showToast("请运行 node server.js 体验真实 API Demo");
+    showToast("请运行 node local-server.js 体验真实 API Demo");
     scanButton.disabled = false;
     return;
   }

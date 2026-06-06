@@ -5,7 +5,7 @@ This is a runnable local MVP demo for the Vibe App Guard scanner.
 ## Run
 
 ```bash
-node server.js
+node local-server.js
 ```
 
 Open:
@@ -53,4 +53,4 @@ The Vercel version uses a synchronous API route:
 POST /api/scans
 ```
 
-It fetches the submitted URL, extracts the target HTML, response headers, and linked scripts, then returns a completed report in the same response. This avoids in-memory job queues in serverless environments. The local `server.js` flow still supports asynchronous scan polling for development.
+It fetches the submitted URL, extracts the target HTML, response headers, and linked scripts, then returns a completed report in the same response. This avoids in-memory job queues in serverless environments. The local `local-server.js` flow still supports asynchronous scan polling for development.
