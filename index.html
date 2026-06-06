@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Vibe App Guard 演示</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="产品导航">
+        <div class="brand">
+          <div class="brand-mark">VG</div>
+          <div>
+            <strong>Vibe App Guard</strong>
+            <span>上线前安全扫描</span>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="演示区块">
+          <a href="#scan" class="nav-item active">扫描</a>
+          <a href="#report" class="nav-item">报告</a>
+          <a href="#fixes" class="nav-item">修复 Prompt</a>
+          <a href="#scope" class="nav-item">范围</a>
+        </nav>
+
+        <div class="scope-card" id="scope">
+          <span class="label">MVP 范围</span>
+          <p>低风险 URL 扫描、上线报告、修复 Prompt 和复扫。审核、反爬等运行时服务放到后续阶段。</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section class="topbar" aria-label="演示状态">
+          <div>
+            <p class="eyebrow">AI 生成应用安全</p>
+            <h1>在真实用户访问前，先让安全扫描器走一遍高风险路径。</h1>
+          </div>
+          <div class="status-pill" id="demoStatus">演示模式</div>
+        </section>
+
+        <section class="scan-panel" id="scan">
+          <div class="scan-copy">
+            <h2>发起上线前扫描</h2>
+            <p>提交一个 App URL，获取本地实时扫描报告，覆盖 UGC、图片上传、AI 对话、验证码滥用和常见技术栈风险。</p>
+          </div>
+
+          <form class="scan-form" id="scanForm">
+            <label for="targetUrl">应用 URL</label>
+            <div class="input-row">
+              <input id="targetUrl" name="targetUrl" type="url" value="https://demo-vibebook.example" required>
+              <button type="submit" id="scanButton">开始扫描</button>
+            </div>
+
+            <div class="scan-options" aria-label="扫描选项">
+              <label><input type="checkbox" checked disabled> 公开页面</label>
+              <label><input type="checkbox" checked disabled> 响应头</label>
+              <label><input type="checkbox" checked disabled> JS 信号</label>
+              <label><input type="checkbox" disabled> 登录态扫描</label>
+            </div>
+          </form>
+        </section>
+
+        <section class="progress-panel hidden" id="progressPanel" aria-live="polite">
+          <div class="progress-head">
+            <div>
+              <h2>正在扫描目标</h2>
+              <p id="progressMessage">正在准备扫描器...</p>
+            </div>
+            <strong id="progressPercent">0%</strong>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <ul class="scan-steps" id="scanSteps"></ul>
+        </section>
+
+        <section class="report-panel hidden" id="report">
+          <div class="report-header">
+            <div>
+              <p class="eyebrow">上线建议</p>
+              <h2 id="reportTitle">公开发布前请先修复高风险问题</h2>
+              <p id="reportSummary">扫描完成后会在这里展示演示报告。</p>
+            </div>
+            <div class="score-card">
+              <span>风险分</span>
+              <strong id="riskScore">72</strong>
+              <small>高风险</small>
+            </div>
+          </div>
+
+          <div class="metric-grid">
+            <div class="metric critical"><span>严重</span><strong id="criticalCount">0</strong></div>
+            <div class="metric high"><span>高危</span><strong id="highCount">3</strong></div>
+            <div class="metric medium"><span>中危</span><strong id="mediumCount">5</strong></div>
+            <div class="metric low"><span>低危</span><strong id="lowCount">4</strong></div>
+          </div>
+
+          <div class="toolbar" id="fixes">
+            <div class="segmented" aria-label="风险筛选">
+              <button class="filter active" data-filter="all" type="button">全部</button>
+              <button class="filter" data-filter="high" type="button">高危</button>
+              <button class="filter" data-filter="ugc" type="button">UGC</button>
+              <button class="filter" data-filter="image_upload" type="button">图片</button>
+              <button class="filter" data-filter="ai_chat" type="button">AI</button>
+            </div>
+            <button class="secondary" type="button" id="rescanButton">重新扫描</button>
+          </div>
+
+          <div class="findings-list" id="findingsList"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/demo-target",
+      "destination": "/demo-target.html"
+    }
+  ]
+}

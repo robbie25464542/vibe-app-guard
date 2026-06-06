@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>演示应用 VibeBook</title>
+    <script src="/demo-target-app.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>演示应用 VibeBook</h1>
+      <section>
+        <h2>评论</h2>
+        <form action="/api/comments/create">
+          <textarea placeholder="分享你的想法"></textarea>
+          <button>发表评论</button>
+        </form>
+      </section>
+      <section>
+        <h2>头像</h2>
+        <input type="file" accept="image/*">
+        <button>上传头像</button>
+        <img src="https://demo.supabase.co/storage/v1/object/public/avatars/demo.png" alt="公开头像">
+      </section>
+      <section>
+        <h2>AI 对话</h2>
+        <input placeholder="询问 AI 助手">
+      </section>
+      <section>
+        <h2>登录</h2>
+        <input placeholder="手机号">
+        <button>发送验证码</button>
+      </section>
+    </main>
+  </body>
+</html>

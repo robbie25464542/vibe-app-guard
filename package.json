@@ -1,0 +1,10 @@
+{
+  "name": "vibe-app-guard-demo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js",
+    "test": "node tests/run-tests.js && node tests/server-tests.js && node verify-demo.js",
+    "verify": "node tests/run-tests.js && node verify-demo.js"
+  }
+}
