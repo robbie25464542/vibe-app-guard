@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node local-server.js",
-    "test": "node tests/run-tests.js && node tests/server-tests.js && node verify-demo.js",
+    "test": "node tests/run-tests.js && node tests/server-tests.js && node tests/vercel-handler-tests.js && node verify-demo.js",
     "verify": "node tests/run-tests.js && node verify-demo.js"
   }
 }

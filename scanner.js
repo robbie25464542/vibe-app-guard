@@ -161,13 +161,15 @@ function analyzeTarget(scanInput) {
   }
 
   const riskScore = calculateRiskScore(findings);
+  const severityCounts = countSeverities(findings);
+  const hasReleaseBlockingFinding = severityCounts.critical > 0 || severityCounts.high > 0;
   return {
     targetUrl: scanInput.targetUrl,
     findings,
-    counts: countSeverities(findings),
+    counts: severityCounts,
     riskScore,
     launchRecommendation:
-      riskScore >= 50
+      hasReleaseBlockingFinding
         ? "公开发布前请先修复高风险问题"
         : "复核风险项后，可以先小范围分享"
   };

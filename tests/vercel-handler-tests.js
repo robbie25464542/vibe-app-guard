@@ -71,6 +71,42 @@ async function testVercelHandlerReturnsReport() {
   }
 }
 
+async function testVercelHandlerScansExplicitDemoPathTarget() {
+  const originalFetch = global.fetch;
+  const requestedUrls = [];
+  global.fetch = async (url) => {
+    requestedUrls.push(String(url));
+    return {
+      url: String(url),
+      status: 200,
+      headers: new Map([["content-type", "text/html"]]),
+      async text() {
+        return "<!doctype html><html><body><h1>Safe external page</h1></body></html>";
+      }
+    };
+  };
+
+  try {
+    const response = createMockResponse();
+    await handler(
+      {
+        method: "POST",
+        url: "/api/scans",
+        body: { targetUrl: "https://unrelated.example/demo-target" }
+      },
+      response
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(requestedUrls, ["https://unrelated.example/demo-target"]);
+    assert.equal(response.body.report.targetUrl, "https://unrelated.example/demo-target");
+    assert.equal(response.body.report.findings.length, 1);
+    assert.equal(response.body.report.findings[0].id, "missing-csp");
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
 async function testVercelHandlerSupportsGetDefaultTarget() {
   const originalFetch = global.fetch;
   let fetchCalls = 0;
@@ -102,6 +138,7 @@ async function testVercelHandlerSupportsGetDefaultTarget() {
 
 Promise.resolve()
   .then(testVercelHandlerReturnsReport)
+  .then(testVercelHandlerScansExplicitDemoPathTarget)
   .then(testVercelHandlerSupportsGetDefaultTarget)
   .then(() => console.log("Vercel handler tests passed"))
   .catch((error) => {

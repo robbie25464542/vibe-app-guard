@@ -49,6 +49,19 @@ function testAnalyzerFindsMvpRisks() {
   assert.equal(result.launchRecommendation, "公开发布前请先修复高风险问题");
 }
 
+function testSingleHighFindingBlocksRelease() {
+  const result = analyzeTarget({
+    targetUrl: "https://example.com/comments",
+    headers: { "content-security-policy": "default-src 'self'" },
+    html: "<textarea>Share your thoughts</textarea><button>Post comment</button>",
+    scripts: []
+  });
+
+  assert.equal(result.counts.high, 1);
+  assert.equal(result.riskScore, 20);
+  assert.equal(result.launchRecommendation, "公开发布前请先修复高风险问题");
+}
+
 function testRiskScoreCapsAt100() {
   const score = calculateRiskScore([
     { severity: "critical" },
@@ -60,5 +73,6 @@ function testRiskScoreCapsAt100() {
 }
 
 testAnalyzerFindsMvpRisks();
+testSingleHighFindingBlocksRelease();
 testRiskScoreCapsAt100();
 console.log("All tests passed");
