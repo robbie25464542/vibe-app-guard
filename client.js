@@ -169,6 +169,8 @@ let findings = [
   }
 ];
 
+let activeFilter = "all";
+
 const form = document.getElementById("scanForm");
 const scanButton = document.getElementById("scanButton");
 const progressPanel = document.getElementById("progressPanel");
@@ -183,6 +185,7 @@ const criticalCount = document.getElementById("criticalCount");
 const highCount = document.getElementById("highCount");
 const mediumCount = document.getElementById("mediumCount");
 const lowCount = document.getElementById("lowCount");
+const reportTitle = document.getElementById("reportTitle");
 const reportSummary = document.getElementById("reportSummary");
 const demoStatus = document.getElementById("demoStatus");
 const rescanButton = document.getElementById("rescanButton");
@@ -279,9 +282,18 @@ function categoryLabel(category) {
   }[category] || category;
 }
 
-function renderFindings(filter = "all") {
+function createElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = String(text);
+  return element;
+}
+
+function renderFindings(filter = activeFilter) {
+  activeFilter = filter;
   const visible = findings.filter((item) => findingMatchesFilter(item, filter));
-  findingsList.innerHTML = visible.map(renderFinding).join("");
+  findingsList.textContent = "";
+  visible.forEach((item) => findingsList.appendChild(renderFinding(item)));
 
   findingsList.querySelectorAll("[data-copy-prompt]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -295,54 +307,76 @@ function renderFindings(filter = "all") {
 }
 
 function renderFinding(item) {
-  const evidence = item.evidence.map((entry) => `<li>${entry}</li>`).join("");
-  return `
-    <article class="finding" data-category="${item.category}" data-severity="${item.severity}">
-      <div class="finding-head">
-        <div>
-          <h3 class="finding-title">${item.title}</h3>
-          <div class="tag-row">
-            <span class="tag severity ${item.severity}">${severityLabel(item.severity)}</span>
-            <span class="tag">${confidenceLabel(item.confidence)}</span>
-            <span class="tag">${categoryLabel(item.category)}</span>
-          </div>
-        </div>
-        <button class="secondary" type="button" data-copy-prompt="${item.id}">复制 Prompt</button>
-      </div>
-      <p>${item.summary}</p>
-      <div class="finding-grid">
-        <div class="evidence">
-          <h4>证据</h4>
-          <ul>${evidence}</ul>
-        </div>
-        <div class="recommendation">
-          <h4>建议修复</h4>
-          <p>${item.recommendation}</p>
-        </div>
-      </div>
-      <div class="prompt-box">
-        <h4>AI Coding 修复 Prompt</h4>
-        <pre>${item.prompt}</pre>
-      </div>
-    </article>
-  `;
+  const severity = item.severity || "info";
+  const category = item.category || "unknown";
+  const confidence = item.confidence || "";
+  const article = createElement("article", "finding");
+  article.dataset.category = category;
+  article.dataset.severity = severity;
+
+  const head = createElement("div", "finding-head");
+  const headCopy = createElement("div");
+  headCopy.appendChild(createElement("h3", "finding-title", item.title));
+
+  const tagRow = createElement("div", "tag-row");
+  tagRow.appendChild(createElement("span", `tag severity ${severity}`, severityLabel(severity)));
+  tagRow.appendChild(createElement("span", "tag", confidenceLabel(confidence)));
+  tagRow.appendChild(createElement("span", "tag", categoryLabel(category)));
+  headCopy.appendChild(tagRow);
+  head.appendChild(headCopy);
+
+  const copyButton = createElement("button", "secondary", "复制 Prompt");
+  copyButton.type = "button";
+  copyButton.dataset.copyPrompt = item.id;
+  head.appendChild(copyButton);
+  article.appendChild(head);
+
+  article.appendChild(createElement("p", "", item.summary));
+
+  const grid = createElement("div", "finding-grid");
+  const evidenceBox = createElement("div", "evidence");
+  evidenceBox.appendChild(createElement("h4", "", "证据"));
+  const evidenceList = createElement("ul");
+  (Array.isArray(item.evidence) ? item.evidence : []).forEach((entry) => {
+    evidenceList.appendChild(createElement("li", "", entry));
+  });
+  evidenceBox.appendChild(evidenceList);
+  grid.appendChild(evidenceBox);
+
+  const recommendationBox = createElement("div", "recommendation");
+  recommendationBox.appendChild(createElement("h4", "", "建议修复"));
+  recommendationBox.appendChild(createElement("p", "", item.recommendation));
+  grid.appendChild(recommendationBox);
+  article.appendChild(grid);
+
+  const promptBox = createElement("div", "prompt-box");
+  promptBox.appendChild(createElement("h4", "", "AI Coding 修复 Prompt"));
+  promptBox.appendChild(createElement("pre", "", item.prompt));
+  article.appendChild(promptBox);
+
+  return article;
+}
+
+function setActiveFilter(filter) {
+  activeFilter = filter || "all";
+  document.querySelectorAll(".filter").forEach((button) => {
+    button.classList.toggle("active", button.dataset.filter === activeFilter);
+  });
+  renderFindings();
 }
 
 function setFilters() {
   document.querySelectorAll(".filter").forEach((button) => {
-    button.addEventListener("click", () => {
-      document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active"));
-      button.classList.add("active");
-      renderFindings(button.dataset.filter);
-    });
+    button.addEventListener("click", () => setActiveFilter(button.dataset.filter));
   });
 }
 
 function completeReport(report) {
-  findings = report.findings;
+  findings = Array.isArray(report.findings) ? report.findings : [];
   renderMetrics(findings);
+  reportTitle.textContent = report.launchRecommendation || "扫描报告";
   reportSummary.textContent = `${report.targetUrl} 本次真实本地扫描发现 ${findings.length} 个风险项。${report.launchRecommendation}。`;
-  renderFindings();
+  renderFindings(activeFilter);
   reportPanel.classList.remove("hidden");
   demoStatus.textContent = "报告已生成";
   reportPanel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -361,9 +395,12 @@ async function createScan(targetUrl) {
   return body;
 }
 
-async function pollScan(scanId) {
-  for (;;) {
-    const response = await fetch(`/api/scans/${scanId}`);
+const POLL_INTERVAL_MS = 350;
+const POLL_MAX_ATTEMPTS = 60;
+
+async function pollScan(scanId, { intervalMs = POLL_INTERVAL_MS, maxAttempts = POLL_MAX_ATTEMPTS } = {}) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const response = await fetch(`/api/scans/${encodeURIComponent(scanId)}`);
     const body = await response.json();
     if (!response.ok) {
       throw new Error(body.error || "加载扫描失败");
@@ -371,8 +408,12 @@ async function pollScan(scanId) {
     if (body.status === "completed" || body.status === "failed") {
       return body;
     }
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    if (body.status !== "queued" && body.status !== "running") {
+      throw new Error(`扫描状态异常：${body.status || "未知"}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
+  throw new Error("扫描超时，请稍后重试");
 }
 
 function setProgress(progress, message, doneIndex) {
@@ -402,20 +443,23 @@ async function runApiScan(targetUrl) {
 async function startScan(targetUrl) {
   scanButton.disabled = true;
   reportPanel.classList.add("hidden");
-  progressPanel.classList.remove("hidden");
   demoStatus.textContent = "扫描中";
   renderSteps(-1);
   setProgress(5, "正在准备扫描器...", -1);
 
   if (!window.location.protocol.startsWith("http")) {
+    progressPanel.classList.add("hidden");
+    demoStatus.textContent = "演示模式";
     showToast("请运行 node local-server.js 体验真实 API Demo");
     scanButton.disabled = false;
     return;
   }
 
+  progressPanel.classList.remove("hidden");
+  let progressTimer;
   try {
     let stepIndex = 0;
-    var progressTimer = setInterval(() => {
+    progressTimer = setInterval(() => {
       stepIndex = Math.min(stepIndex + 1, scanSteps.length - 2);
       const progress = Math.min(90, 20 + stepIndex * 12);
       setProgress(progress, scanSteps[stepIndex], stepIndex);
@@ -423,6 +467,10 @@ async function startScan(targetUrl) {
     await runApiScan(targetUrl);
   } catch (error) {
     demoStatus.textContent = "扫描失败";
+    progressMessage.textContent = `扫描失败：${error.message}`;
+    progressPercent.textContent = "失败";
+    progressBar.style.width = "0%";
+    renderSteps(-1);
     showToast(error.message);
   } finally {
     if (progressTimer) clearInterval(progressTimer);
@@ -445,3 +493,15 @@ rescanButton.addEventListener("click", () => {
 setFilters();
 renderMetrics(findings);
 renderFindings();
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    completeReport,
+    pollScan,
+    renderFinding,
+    renderFindings,
+    setActiveFilter,
+    startScan,
+    POLL_MAX_ATTEMPTS
+  };
+}

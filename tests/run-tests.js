@@ -49,6 +49,61 @@ function testAnalyzerFindsMvpRisks() {
   assert.equal(result.launchRecommendation, "公开发布前请先修复高风险问题");
 }
 
+function baseScanInput(html, scripts = []) {
+  return {
+    targetUrl: "https://example.com/app",
+    headers: { "content-security-policy": "default-src 'self'" },
+    html,
+    scripts
+  };
+}
+
+function testUnrelatedTextDoesNotSuppressFindings() {
+  const commentResult = analyzeTarget(
+    baseScanInput('<textarea placeholder="Share your thoughts"></textarea><button>Post comment</button><footer>Products pending review</footer>')
+  );
+  assert(commentResult.findings.some((finding) => finding.id === "comments-publish-without-review"));
+
+  const aiResult = analyzeTarget(
+    baseScanInput('<input placeholder="Ask the AI assistant"><section>Comment moderation policy</section>')
+  );
+  assert(aiResult.findings.some((finding) => finding.id === "ai-chat-without-guardrails"));
+
+  const otpResult = analyzeTarget(
+    baseScanInput('<input placeholder="Phone number"><button>Send code</button><p>API rate limit: 10 searches/minute</p>')
+  );
+  assert(otpResult.findings.some((finding) => finding.id === "otp-no-visible-rate-limit"));
+}
+
+function testFeatureModerationStillSuppressesItsOwnFinding() {
+  const result = analyzeTarget(
+    baseScanInput('<textarea placeholder="Share your thoughts"></textarea><button>Post comment</button><p>moderation_status: pending</p>')
+  );
+  assert(!result.findings.some((finding) => finding.id === "comments-publish-without-review"));
+}
+
+function testSourceMapRequiresDirectiveAndIsNotConfirmed() {
+  const mentionResult = analyzeTarget(
+    baseScanInput("", [{ url: "https://example.com/app.js", body: "const docs = 'Upload files ending in .js.map';" }])
+  );
+  assert(!mentionResult.findings.some((finding) => finding.id === "public-source-map"));
+
+  const directiveResult = analyzeTarget(
+    baseScanInput("", [{ url: "https://example.com/app.js", body: "//# sourceMappingURL=app.js.map" }])
+  );
+  const finding = directiveResult.findings.find((item) => item.id === "public-source-map");
+  assert(finding);
+  assert.equal(finding.confidence, "likely");
+}
+
+function testJwtAloneIsNotSupabaseSignal() {
+  const jwtOnly = analyzeTarget(baseScanInput('<script>const authToken = "eyJhbGciOiJIUzI1NiJ9.not-supabase";</script>'));
+  assert(!jwtOnly.findings.some((finding) => finding.id === "supabase-anon-key"));
+
+  const supabase = analyzeTarget(baseScanInput('<script>window.SUPABASE_URL = "https://demo.supabase.co";</script>'));
+  assert(supabase.findings.some((finding) => finding.id === "supabase-anon-key"));
+}
+
 function testSingleHighFindingBlocksRelease() {
   const result = analyzeTarget({
     targetUrl: "https://example.com/comments",
@@ -73,6 +128,10 @@ function testRiskScoreCapsAt100() {
 }
 
 testAnalyzerFindsMvpRisks();
+testUnrelatedTextDoesNotSuppressFindings();
+testFeatureModerationStillSuppressesItsOwnFinding();
+testSourceMapRequiresDirectiveAndIsNotConfirmed();
+testJwtAloneIsNotSupabaseSignal();
 testSingleHighFindingBlocksRelease();
 testRiskScoreCapsAt100();
 console.log("All tests passed");

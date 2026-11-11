@@ -42,6 +42,7 @@ http://127.0.0.1:4173/demo-target
 node tests/run-tests.js
 node tests/server-tests.js
 node tests/vercel-handler-tests.js
+node tests/client-tests.js
 node verify-demo.js
 ```
 
