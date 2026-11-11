@@ -20,6 +20,10 @@ function createMockResponse() {
   };
 }
 
+function findingIds(report) {
+  return report.findings.map((finding) => finding.id).sort();
+}
+
 async function testVercelHandlerReturnsReport() {
   const originalFetch = global.fetch;
   global.fetch = async (url) => {
@@ -64,8 +68,51 @@ async function testVercelHandlerReturnsReport() {
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.body.status, "completed");
-    assert.equal(response.body.report.findings.length, 7);
-    assert.equal(response.body.report.findings[0].title, "评论内容可能未经审核直接公开");
+    assert.deepEqual(findingIds(response.body.report), [
+      "ai-chat-without-guardrails",
+      "comments-publish-without-review",
+      "image-upload-public-url",
+      "missing-csp",
+      "otp-no-visible-rate-limit",
+      "public-source-map",
+      "supabase-anon-key"
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
+async function testVercelHandlerScansExplicitDemoPathTarget() {
+  const originalFetch = global.fetch;
+  const requestedUrls = [];
+  global.fetch = async (url) => {
+    requestedUrls.push(String(url));
+    return {
+      url: String(url),
+      status: 200,
+      headers: new Map([["content-type", "text/html"]]),
+      async text() {
+        return "<!doctype html><html><body><h1>Safe external page</h1></body></html>";
+      }
+    };
+  };
+
+  try {
+    const response = createMockResponse();
+    await handler(
+      {
+        method: "POST",
+        url: "/api/scans",
+        body: { targetUrl: "https://unrelated.example/demo-target" }
+      },
+      response
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(requestedUrls, ["https://unrelated.example/demo-target"]);
+    assert.equal(response.body.report.targetUrl, "https://unrelated.example/demo-target");
+    assert.equal(response.body.report.findings.length, 1);
+    assert.equal(response.body.report.findings[0].id, "missing-csp");
   } finally {
     global.fetch = originalFetch;
   }
@@ -93,7 +140,15 @@ async function testVercelHandlerSupportsGetDefaultTarget() {
     assert.equal(response.statusCode, 200);
     assert.equal(response.body.status, "completed");
     assert.equal(response.body.report.targetUrl, "https://vibe-app-guard-demo.vercel.app/demo-target");
-    assert.equal(response.body.report.findings.length, 7);
+    assert.deepEqual(findingIds(response.body.report), [
+      "ai-chat-without-guardrails",
+      "comments-publish-without-review",
+      "image-upload-public-url",
+      "missing-csp",
+      "otp-no-visible-rate-limit",
+      "public-source-map",
+      "supabase-anon-key"
+    ]);
     assert.equal(fetchCalls, 0);
   } finally {
     global.fetch = originalFetch;
@@ -102,6 +157,7 @@ async function testVercelHandlerSupportsGetDefaultTarget() {
 
 Promise.resolve()
   .then(testVercelHandlerReturnsReport)
+  .then(testVercelHandlerScansExplicitDemoPathTarget)
   .then(testVercelHandlerSupportsGetDefaultTarget)
   .then(() => console.log("Vercel handler tests passed"))
   .catch((error) => {

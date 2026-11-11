@@ -20,6 +20,111 @@ function hasPublicSupabaseStorage(text) {
   return /supabase\.co\/storage\/v1\/object\/public/i.test(text);
 }
 
+const featureSignals = {
+  commentSurface: [
+    "post comment",
+    "share your thoughts",
+    "leave a comment",
+    "/api/comments",
+    "comment form",
+    "发表评论",
+    "分享你的想法",
+    "评论"
+  ],
+  commentModeration: [
+    "moderation_status",
+    "comment_status",
+    "pending approval",
+    "pending moderation",
+    "awaiting moderation",
+    "待审核",
+    "审核中",
+    "审核通过",
+    "审核拒绝",
+    "人工审核"
+  ],
+  imageUpload: [
+    'type="file"',
+    "upload avatar",
+    "avatar upload",
+    "image upload",
+    "上传头像",
+    "头像",
+    "图片上传"
+  ],
+  imageModeration: [
+    "image_moderation",
+    "avatar_moderation",
+    "image moderation",
+    "avatar moderation",
+    "avatar-submissions",
+    "signed url",
+    "signedurl",
+    "private bucket",
+    "staging bucket",
+    "图片审核",
+    "头像审核",
+    "私有 bucket"
+  ],
+  aiSurface: [
+    "openai",
+    "anthropic",
+    "/api/chat",
+    "chat completions",
+    "ask the ai",
+    "assistant",
+    "询问 AI",
+    "AI 助手",
+    "AI 对话"
+  ],
+  aiGuardrail: [
+    "guardrail",
+    "safety_check",
+    "safety check",
+    "openai moderation",
+    "moderation api",
+    "input moderation",
+    "output moderation",
+    "pii redaction",
+    "redact",
+    "pii",
+    "内容审核",
+    "输入审核",
+    "输出审核",
+    "安全护栏",
+    "脱敏"
+  ],
+  otpSurface: [
+    "send code",
+    "otp",
+    "phone number",
+    "verification code",
+    "发送验证码",
+    "手机号",
+    "验证码"
+  ],
+  otpRateLimit: [
+    "retry-after",
+    "retry_after",
+    "too many requests",
+    "turnstile",
+    "recaptcha",
+    "hcaptcha",
+    "cooldown",
+    "rate_limit",
+    "ratelimit",
+    "限频",
+    "冷却",
+    "发送频率",
+    "频控"
+  ]
+};
+
+function extractSourceMapUrl(text) {
+  const match = /sourceMappingURL\s*=\s*([^\s'"]+)/i.exec(text);
+  return match ? match[1] : null;
+}
+
 function calculateRiskScore(findings) {
   const score = findings.reduce((total, finding) => total + (severityWeights[finding.severity] || 0), 0);
   return Math.min(100, score);
@@ -47,9 +152,9 @@ function analyzeTarget(scanInput) {
   const corpus = `${html}\n${scriptText}`;
   const findings = [];
 
-  const hasCommentSurface = includesAny(corpus, ["post comment", "share your thoughts", "发表评论", "分享你的想法", "/api/comments/create", "textarea"]);
-  const hasModerationSignal = includesAny(corpus, ["moderation_status", "pending", "approved", "rejected", "review", "待审核", "已通过", "已拒绝", "复核"]);
-  if (hasCommentSurface && !hasModerationSignal) {
+  const hasCommentSurface = includesAny(corpus, featureSignals.commentSurface);
+  const hasCommentModeration = includesAny(corpus, featureSignals.commentModeration);
+  if (hasCommentSurface && !hasCommentModeration) {
     findings.push(makeFinding({
       id: "comments-publish-without-review",
       category: "ugc",
@@ -64,9 +169,10 @@ function analyzeTarget(scanInput) {
     }));
   }
 
-  const hasImageUpload = includesAny(corpus, ['type="file"', "upload avatar", "avatar", "image upload", "上传头像", "头像", "图片上传"]);
+  const hasImageUpload = includesAny(corpus, featureSignals.imageUpload);
   const hasPublicStorage = hasPublicSupabaseStorage(corpus);
-  if (hasImageUpload && hasPublicStorage && !hasModerationSignal) {
+  const hasImageModeration = includesAny(corpus, featureSignals.imageModeration);
+  if (hasImageUpload && hasPublicStorage && !hasImageModeration) {
     findings.push(makeFinding({
       id: "image-upload-public-url",
       category: "image_upload",
@@ -81,8 +187,8 @@ function analyzeTarget(scanInput) {
     }));
   }
 
-  const hasAiSurface = includesAny(corpus, ["openai", "anthropic", "/api/chat", "chat completions", "ask the ai", "assistant", "询问 AI", "AI 助手", "AI 对话"]);
-  const hasGuardrailSignal = includesAny(corpus, ["moderation", "redact", "pii", "guardrail", "safety_check", "脱敏", "审核", "安全护栏"]);
+  const hasAiSurface = includesAny(corpus, featureSignals.aiSurface);
+  const hasGuardrailSignal = includesAny(corpus, featureSignals.aiGuardrail);
   if (hasAiSurface && !hasGuardrailSignal) {
     findings.push(makeFinding({
       id: "ai-chat-without-guardrails",
@@ -98,8 +204,8 @@ function analyzeTarget(scanInput) {
     }));
   }
 
-  const hasOtpSurface = includesAny(corpus, ["send code", "otp", "phone number", "verification code", "发送验证码", "手机号", "验证码"]);
-  const hasRateLimitSignal = includesAny(corpus, ["rate limit", "retry-after", "cooldown", "too many requests", "turnstile", "recaptcha", "hcaptcha", "限频", "冷却"]);
+  const hasOtpSurface = includesAny(corpus, featureSignals.otpSurface);
+  const hasRateLimitSignal = includesAny(corpus, featureSignals.otpRateLimit);
   if (hasOtpSurface && !hasRateLimitSignal) {
     findings.push(makeFinding({
       id: "otp-no-visible-rate-limit",
@@ -115,16 +221,17 @@ function analyzeTarget(scanInput) {
     }));
   }
 
-  if (includesAny(scriptText, ["sourcemappingurl", ".js.map"])) {
+  const sourceMapUrl = extractSourceMapUrl(scriptText);
+  if (sourceMapUrl) {
     findings.push(makeFinding({
       id: "public-source-map",
       category: "secrets",
       severity: "medium",
-      confidence: "confirmed",
+      confidence: "likely",
       title: "生产环境 Source Map 可能公开",
-      summary: "公开脚本内容中发现 JavaScript source map 信号。",
-      impact: "公开 source map 可能暴露内部路径、接口名称、注释和实现细节。",
-      evidence: ["发现 sourceMappingURL 或 .map 信号"],
+      summary: "公开脚本引用了 source map 文件，但扫描器没有验证该文件是否可公开访问。",
+      impact: "可公开访问的 source map 可能暴露内部路径、接口名称、注释和实现细节。",
+      evidence: [`发现 sourceMappingURL 指令：${sourceMapUrl}`],
       recommendation: "生产环境关闭浏览器可访问的 source map，或仅存放在私有错误追踪系统中。",
       prompt: "请关闭生产环境公开 source map，并验证 .map URL 返回 404 或需要权限访问。"
     }));
@@ -145,29 +252,32 @@ function analyzeTarget(scanInput) {
     }));
   }
 
-  if (includesAny(corpus, ["supabase_anon_key", "eyJhbGciOi", "supabase.co"])) {
+  const hasSupabaseSignal = includesAny(corpus, ["supabase.co", "supabase.in", "supabase_url", "supabase_anon_key", "supabase_service_role_key"]);
+  if (hasSupabaseSignal) {
     findings.push(makeFinding({
       id: "supabase-anon-key",
       category: "storage",
       severity: "low",
       confidence: "confirmed",
-      title: "发现 Supabase anon key 或项目信号",
+      title: "发现 Supabase 项目或 anon key 信号",
       summary: "扫描发现 Supabase 前端信号。这本身很常见，但必须确保 RLS 和存储策略配置正确。",
       impact: "如果 RLS 或 storage policy 过宽，公开客户端可能读取或写入本不该访问的数据。",
-      evidence: ["发现 Supabase 项目或 anon key 信号"],
+      evidence: ["发现 Supabase 项目 URL、anon key 或环境变量信号"],
       recommendation: "确认用户数据表开启 RLS，并检查 storage policy 是否符合公开/私有预期。",
       prompt: "请审计 Supabase RLS 和 storage policy，确保用户数据表开启 RLS，公开客户端不能写入敏感表。"
     }));
   }
 
   const riskScore = calculateRiskScore(findings);
+  const severityCounts = countSeverities(findings);
+  const hasReleaseBlockingFinding = severityCounts.critical > 0 || severityCounts.high > 0;
   return {
     targetUrl: scanInput.targetUrl,
     findings,
-    counts: countSeverities(findings),
+    counts: severityCounts,
     riskScore,
     launchRecommendation:
-      riskScore >= 50
+      hasReleaseBlockingFinding
         ? "公开发布前请先修复高风险问题"
         : "复核风险项后，可以先小范围分享"
   };

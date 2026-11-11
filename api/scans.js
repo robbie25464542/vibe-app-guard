@@ -37,8 +37,8 @@ function extractScriptUrls(baseUrl, html) {
   return urls.slice(0, 8);
 }
 
-async function scanTarget(targetUrl) {
-  if (isBuiltInDemoTarget(targetUrl)) {
+async function scanTarget(targetUrl, { useBuiltInFixture = false } = {}) {
+  if (useBuiltInFixture) {
     return analyzeTarget({
       targetUrl,
       headers: {
@@ -73,14 +73,6 @@ async function scanTarget(targetUrl) {
     html: page.text.slice(0, 500_000),
     scripts
   });
-}
-
-function isBuiltInDemoTarget(targetUrl) {
-  try {
-    return new URL(targetUrl).pathname === "/demo-target";
-  } catch {
-    return false;
-  }
 }
 
 function createDemoTargetHtml() {
@@ -152,7 +144,8 @@ module.exports = async function handler(request, response) {
   }
 
   try {
-    const report = await scanTarget(targetUrl);
+    const useBuiltInFixture = request.method === "GET" && !requestUrl.searchParams.has("targetUrl");
+    const report = await scanTarget(targetUrl, { useBuiltInFixture });
     response.status(200).json({
       scanId: `scan_${Date.now()}`,
       status: "completed",
